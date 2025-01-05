@@ -11,7 +11,9 @@ from nonebot import require
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from pil_utils import Text2Image
 
-require("nonebot_plugin_guild_patch")
+require("nonebot_plugin_russian")
+from nonebot_plugin_russian import russian_sign
+
 from nonebot.adapters.onebot.v11 import (
     Bot,
     GroupMessageEvent,
@@ -24,7 +26,6 @@ from nonebot.log import logger
 from nonebot.params import CommandArg
 from nonebot.plugin import PluginMetadata
 from nonebot.plugin.on import on_command
-from nonebot_plugin_guild_patch import GuildMessageEvent
 
 from .base import *
 from .config import *
@@ -52,14 +53,12 @@ give_okodokai = on_command("盖章", aliases={"签到", "妈!"}, priority=30, bl
 
 @give_okodokai.handle()
 async def _(
-    event: Union[GroupMessageEvent, GuildMessageEvent, PrivateMessageEvent], bot: Bot
+    event: Union[GroupMessageEvent, PrivateMessageEvent], bot: Bot
 ):
     # 获取 QQ 号和群号
     uid = event.user_id
     if isinstance(event, GroupMessageEvent):
         gid = event.group_id
-    elif isinstance(event, GuildMessageEvent):
-        gid = event.guild_id
     elif isinstance(event, PrivateMessageEvent):
         gid = uid
     else:
@@ -184,13 +183,14 @@ async def _(
 
     # 一言
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get("https://v1.hitokoto.cn/?c=f&encode=text")
-            status_code = response.status_code
-            if status_code == 200:
-                response_text = response.text
-            else:
-                response_text = f"请求错误: {status_code}"
+        response_text = await russian_sign(event)
+        #async with httpx.AsyncClient() as client:
+            #response = await client.get("https://v1.hitokoto.cn/?c=f&encode=text")
+            #status_code = response.status_code
+            #if status_code == 200:
+                #response_text = response.text
+            #else:
+                #response_text = f"请求错误: {status_code}"
     except Exception as error:
         logger.warning(error)
 
@@ -246,9 +246,9 @@ async def _(
     para = textwrap.wrap(f"主人今天要{todo}吗?", width=16)
     for i, line in enumerate(para):
         draw.text((98, 53 * i + 792), line, "white", text_font)
-    para = textwrap.wrap(f"今日一言: {response_text}", width=16)
+    para = textwrap.wrap(f"轮盘: {response_text}", width=16)
     for i, line in enumerate(para):
-        draw.text((98, 53 * i + 898), line, "white", text_font)
+        draw.text((98, 53 * i + 898), line, (255, 215, 0), text_font)
 
     output = BytesIO()
     if sign_config.bg_mode == 1:
@@ -261,7 +261,7 @@ async def _(
         sign_bg.save(output, format="png")
 
     await give_okodokai.send(
-        MessageSegment.image(output), at_sender=True, reply_message=True
+        MessageSegment.image(output), at_sender=True, reply_message=False
     )
 
 
@@ -271,7 +271,7 @@ storage = on_command("收集册", aliases={"排行榜", "图鉴"}, priority=30, 
 @storage.handle()
 async def _(
     bot: Bot,
-    event: Union[GroupMessageEvent, GuildMessageEvent, PrivateMessageEvent],
+    event: Union[GroupMessageEvent, PrivateMessageEvent],
     msg: Message = CommandArg(),
 ):
     # 获取 QQ 号
@@ -292,8 +292,6 @@ async def _(
     # 获取群号
     if isinstance(event, GroupMessageEvent):
         gid = event.group_id
-    elif isinstance(event, GuildMessageEvent):
-        gid = event.guild_id
     elif isinstance(event, PrivateMessageEvent):
         gid = uid
     else:
@@ -375,11 +373,12 @@ async def _(
         lucky_user_card = await get_user_card(bot, gid, uid)
         try:
             await storage.finish(
-                f"\n『{lucky_user_card}』的收集册:\n"
+                f"\n收集册:\n"
                 + img
                 + f"\n图鉴完成度: {normalize_digit_format(len(cards_num))}/{normalize_digit_format(len(card_file_names_all))}\n当前群排名: {ranking_desc}\n"
                 + MessageSegment.image(output),
-                reply_message=True,
+                reply_message=False,
+                at_sender=True
             )
         except ActionFailed:
             logger.warning("直接发送失败, 尝试以转发形式发送!")
@@ -404,21 +403,14 @@ async def _(
                 )
             await bot.call_api("send_group_forward_msg", group_id=gid, messages=msgs)
             logger.success("发送成功!")
-    elif isinstance(event, GuildMessageEvent):
-        await storage.finish(
-            "的收集册:\n"
-            + img
-            + f"\n图鉴完成度: {normalize_digit_format(len(cards_num))}/{normalize_digit_format(len(card_file_names_all))}\n当前群排名: {ranking_desc}\n"
-            + MessageSegment.image(output),
-            at_sender=True,
-        )
     elif isinstance(event, PrivateMessageEvent):
         await storage.finish(
             "你的收集册:\n"
             + img
             + f"\n图鉴完成度: {normalize_digit_format(len(cards_num))}/{normalize_digit_format(len(card_file_names_all))}\n当前群排名: {ranking_desc}\n"
             + MessageSegment.image(output),
-            reply_message=True,
+            at_sender=True,
+            reply_message=False,
         )
     else:
         return
