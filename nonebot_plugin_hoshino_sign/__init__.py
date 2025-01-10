@@ -11,8 +11,8 @@ from nonebot import require
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from pil_utils import Text2Image
 
-require("nonebot_plugin_russian")
-from nonebot_plugin_russian import russian_sign
+require("russian")
+from russian import russian_sign
 
 from nonebot.adapters.onebot.v11 import (
     Bot,
@@ -183,6 +183,7 @@ async def _(
 
     # 一言
     try:
+        response_text = ''
         response_text = await russian_sign(event)
         #async with httpx.AsyncClient() as client:
             #response = await client.get("https://v1.hitokoto.cn/?c=f&encode=text")
